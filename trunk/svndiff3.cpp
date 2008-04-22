@@ -1,8 +1,9 @@
 //////////////////////////////////////////////////////////////////////
-// svndiff3.cpp : Defines the entry point for the console application.
+// svndiff3.cpp : Defines the entry point for the application.
 //
 
 #include "stdafx.h"
+#include "svndiff3.h"
 
 ///////////////////////////////////////////////////////////////////////
 // Subversion passes the diff parameters as follows:
@@ -22,6 +23,8 @@
 //////////////////////////////////////////////////////////////////////
 // Function declarations
 //////////////////////////////////////////////////////////////////////
+bool ParseParams(ref vector<tstring>& params, LPCTSTR lpCmdLine);
+bool tcsin(TCHAR c, LPCTSTR lpSet);
 void GetDiff3CmdPath(out LPTSTR pszDiff3Cmd, size_t nBufLen);
 bool GetTempFileName(out LPTSTR pszFileName, size_t nBufLen);
 void AddPathSlash(ref LPTSTR pszPathName, size_t nBufLen);
@@ -42,63 +45,160 @@ bool GetTempFileName(ref _TCHAR (&szFileName)[size])
 {
 	return GetTempFileName(out szFileName, size);
 }
+
 //////////////////////////////////////////////////////////////////////
-//  FUNCTION: _tmain
+//  FUNCTION: _tWinMain
 //
 //  PURPOSE: Main program entry point.
 //
 //  COMMENTS:
-//       After performing the merge, this applet needs to print the contents
-//       of the merged file to stdout.
-//       Return an errorcode of 0 on successful merge, 1 if unresolved conflicts
-//       remain in the result.  Any other errorcode will be treated as fatal.
 //
-int _tmain(int argc, _TCHAR* argv[])
+//
+int APIENTRY _tWinMain(HINSTANCE hInstance,
+					 HINSTANCE hPrevInstance,
+					 LPTSTR    lpCmdLine,
+					 int       nCmdShow)
 {
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(nCmdShow);
+
+	vector<tstring> params;
 	int retval = 1;
 
-	if(argc >= 12)
+	if(ParseParams(ref params, lpCmdLine))
 	{
-		_TCHAR szOutputFile[_MAX_PATH];
-
-		if(GetTempFileName(out szOutputFile))
+		if(params.size() >= 11)
 		{
-			LPCTSTR pszBaseRev = argv[6];
-			LPCTSTR pszCurRev = argv[8];
-			LPCTSTR pszMyFile = argv[9];
-			LPCTSTR pszBaseFile = argv[10];
-			LPCTSTR pszTheirFile = argv[11];
-			_TCHAR szDiff3Cmd[_MAX_PATH];
-			_TCHAR szDiffParam[2048];
+			_TCHAR szOutputFile[_MAX_PATH];
 
-			_stprintf_s(out szDiffParam,
-					_TEXT("%s %s %s --output %s --auto --L1 \"Base (%s)\" --L2 \"Theirs (%s)\" --L3 \"Mine\""),
-					pszBaseFile, pszTheirFile, pszMyFile, szOutputFile,
-					pszBaseRev, pszCurRev);
-
-			GetDiff3CmdPath(out szDiff3Cmd);
-
-			try
+			if(GetTempFileName(out szOutputFile))
 			{
-				intptr_t spawnret = _tspawnlp(_P_WAIT, szDiff3Cmd, szDiff3Cmd, szDiffParam, NULL);
-				if(0 == spawnret)
+				LPCTSTR pszBaseRev = params[5].c_str();
+				LPCTSTR pszCurRev = params[7].c_str();
+				LPCTSTR pszMyFile = params[8].c_str();
+				LPCTSTR pszBaseFile = params[9].c_str();
+				LPCTSTR pszTheirFile = params[10].c_str();
+				_TCHAR szDiff3Cmd[_MAX_PATH];
+				_TCHAR szDiffParam[2048];
+
+				_stprintf_s(out szDiffParam,
+						_TEXT("%s %s %s --output %s --auto --L1 \"Base - %s (%s)\" --L2 \"Theirs - %s (%s)\" --L3 \"Mine - %s\""),
+						pszBaseFile, pszTheirFile, pszMyFile, szOutputFile,
+						pszBaseFile, pszBaseRev, pszTheirFile, pszCurRev, pszMyFile);
+
+				GetDiff3CmdPath(out szDiff3Cmd);
+
+				try
 				{
-					if(DisplayFile(szOutputFile))
+					intptr_t spawnret = _tspawnlp(_P_WAIT, szDiff3Cmd, szDiff3Cmd, szDiffParam, NULL);
+					if(0 == spawnret)
 					{
-						retval = 0;
+						if(AttachConsole(ATTACH_PARENT_PROCESS))
+						{
+							if(DisplayFile(szOutputFile))
+							{
+								retval = 0;
+							}
+						}
 					}
 				}
-			}
-			catch(...)
-			{
-				retval = 1;
-			}
+				catch(...)
+				{
+					retval = 1;
+				}
 
-			_tunlink(szOutputFile);
+				_tunlink(szOutputFile);
+			}
 		}
 	}
 
 	return retval;
+}
+
+//////////////////////////////////////////////////////////////////////
+//  FUNCTION: tcsin
+//
+//  PURPOSE: Determine if the character is in the string.
+//
+//  COMMENTS:
+//
+//
+bool tcsin(TCHAR c, LPCTSTR lpSet)
+{
+	LPCTSTR lpScan = lpSet;
+
+	while(NULCHAR != *lpScan)
+	{
+		if(c == *lpScan)
+		{
+			return true;
+		}
+
+		lpScan++;
+	}
+
+	return false;
+}
+
+//////////////////////////////////////////////////////////////////////
+//  FUNCTION: ParseParams
+//
+//  PURPOSE: Parse the single command-line parameter into string array.
+//
+//  COMMENTS:
+//
+//
+bool ParseParams(ref vector<tstring>& params, LPCTSTR lpCmdLine)
+{
+	LPCTSTR lpParamSeps = TEXT(" \t");
+	LPCTSTR lpEndDoubleQuote = TEXT("\"");
+	LPCTSTR lpEndSingleQuote = TEXT("'");
+
+	while(NULCHAR != *lpCmdLine)
+	{
+		while(tcsin(*lpCmdLine, lpParamSeps))
+		{
+			lpCmdLine++;
+		}
+
+		if(NULCHAR == *lpCmdLine)
+		{
+			break;
+		}
+
+		LPCTSTR lpEndToken = lpParamSeps;
+
+		if(tcsin(*lpCmdLine, lpEndDoubleQuote))
+		{
+			lpCmdLine++;
+			lpEndToken = lpEndDoubleQuote;
+		}
+		else if(tcsin(*lpCmdLine, lpEndSingleQuote))
+		{
+			lpCmdLine++;
+			lpEndToken = lpEndSingleQuote;
+		}
+
+		LPCTSTR lpEndParam = lpCmdLine;
+
+		while(NULCHAR != *lpEndParam
+			&& !tcsin(*lpEndParam, lpEndToken))
+		{
+			lpEndParam++;
+		}
+
+		// size_t nParamLen = (size_t) ((lpEndParam - lpCmdLine) / sizeof(TCHAR));
+		size_t nParamLen = (size_t) (lpEndParam - lpCmdLine);
+		params.push_back(tstring(lpCmdLine, nParamLen));
+		lpCmdLine = lpEndParam;
+		if(tcsin(*lpCmdLine, lpEndDoubleQuote)
+			|| tcsin(*lpCmdLine, lpEndSingleQuote))
+		{
+			lpCmdLine++;
+		}
+	}
+
+	return true;
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -120,12 +220,12 @@ bool DisplayFile(LPCTSTR pszSrcFileName)
 		const size_t BUFLEN = 2048;
 		short byBuf[BUFLEN];
 		int bytesRead = 0;
-		int bytesWritten = 0;
+		DWORD bytesWritten = 0;
+		HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
 		while((bytesRead = _read(hSrc, ref byBuf, BUFLEN)) > 0)
 		{
-			bytesWritten = fwrite(byBuf, 1, bytesRead, stdout);
-			if(bytesWritten != bytesRead)
+			if(!WriteFile(hStdOut, byBuf, bytesRead, &bytesWritten, NULL))
 			{
 				bSuccess = false;
 				break;
