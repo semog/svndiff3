@@ -7,6 +7,10 @@
 
 #include "targetver.h"
 
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+// Windows Header Files:
+#include <windows.h>
+
 #include <stdio.h>
 #include <tchar.h>
 #include <stdlib.h>
@@ -15,15 +19,15 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <share.h>
+#include <vector>
+#include <string>
+
+using namespace std;
 
 #ifdef UNICODE
 #define tstring	wstring
-typedef wchar_t* LPTSTR;
-typedef const wchar_t* LPCTSTR;
 #else
 #define tstring string
-typedef char* LPTSTR;
-typedef const char* LPCTSTR;
 #endif
 
 
