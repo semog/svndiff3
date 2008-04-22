@@ -93,7 +93,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
 					intptr_t spawnret = _tspawnlp(_P_WAIT, szDiff3Cmd, szDiff3Cmd, szDiffParam, NULL);
 					if(0 == spawnret)
 					{
-						if(AttachConsole(ATTACH_PARENT_PROCESS))
+						BOOL bConnectedToConsole = AttachConsole(ATTACH_PARENT_PROCESS);
+
+						if(!bConnectedToConsole)
+						{
+							// Could not attach to parent console, so create new one.
+							bConnectedToConsole = AllocConsole();
+						}
+
+						if(bConnectedToConsole)
 						{
 							if(DisplayFile(szOutputFile))
 							{
